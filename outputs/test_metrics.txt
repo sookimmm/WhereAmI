@@ -1,0 +1,33 @@
+test_accuracy: 0.9023
+correct: 120 / 133
+
+Confusion matrix:
+[[48  0  6]
+ [ 1 19  5]
+ [ 0  1 53]]
+
+              precision    recall  f1-score   support
+
+     Mendoza       0.98      0.89      0.93        54
+  Morris_Inn       0.95      0.76      0.84        25
+   Welsh_Fam       0.83      0.98      0.90        54
+
+    accuracy                           0.90       133
+   macro avg       0.92      0.88      0.89       133
+weighted avg       0.91      0.90      0.90       133
+
+
+Misclassified test images:
+  data/splits/test/Mendoza/IMG_8213.JPG : true=Mendoza pred=Welsh_Fam
+  data/splits/test/Mendoza/IMG_8237.JPG : true=Mendoza pred=Welsh_Fam
+  data/splits/test/Mendoza/IMG_8274.JPG : true=Mendoza pred=Welsh_Fam
+  data/splits/test/Mendoza/IMG_8316.JPG : true=Mendoza pred=Welsh_Fam
+  data/splits/test/Mendoza/IMG_8366.JPG : true=Mendoza pred=Welsh_Fam
+  data/splits/test/Mendoza/IMG_8442.JPG : true=Mendoza pred=Welsh_Fam
+  data/splits/test/Morris_Inn/IMG_8063.JPG : true=Morris_Inn pred=Welsh_Fam
+  data/splits/test/Morris_Inn/IMG_8064.JPG : true=Morris_Inn pred=Mendoza
+  data/splits/test/Morris_Inn/IMG_8077.JPG : true=Morris_Inn pred=Welsh_Fam
+  data/splits/test/Morris_Inn/IMG_8124.JPG : true=Morris_Inn pred=Welsh_Fam
+  data/splits/test/Morris_Inn/IMG_8177.JPG : true=Morris_Inn pred=Welsh_Fam
+  data/splits/test/Morris_Inn/IMG_8183.JPG : true=Morris_Inn pred=Welsh_Fam
+  data/splits/test/Welsh_Fam/IMG_7849.JPG : true=Welsh_Fam pred=Morris_Inn
