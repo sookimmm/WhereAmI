@@ -1,196 +1,191 @@
-# WhereAmI — Notre Dame Building Recognition
+# WhereAmI
 
-CSE 40535 Computer Vision · Spring 2026 · Project 03 (First Coding Update)
+CSE 40535 Computer Vision — Spring 2026 — Project 03
 
-A computer-vision system that takes a smartphone photo of a Notre Dame campus
-building and predicts which building it is. This update covers everything
-*before* classification: data preprocessing, segmentation, and feature
-extraction. Classifier training and evaluation will land in Project 04.
+This is the first coding update for my semester project, "Where am I located?".
+The goal is to take a phone photo of a Notre Dame building and figure out
+which building it is. For this update I focused on getting the
+preprocessing, segmentation, and feature extraction working. Classification
+will come in the next project.
 
-## Buildings (3 classes)
+## Buildings I'm using
 
-| Class | Visual signature |
-|---|---|
-| **Mendoza** (College of Business) | modern light-stone facade, large dark glass curtain wall, sharp rectangular grid |
-| **Morris_Inn** | brick + stone Gothic, arched entrance, varied window shapes |
-| **Welsh_Fam** | light beige brick, reflective angled glass entry tower, "1997" engraving |
+I picked three buildings on campus that are close to each other and have
+distinct architecture:
 
-> Note: the original Project 02 proposal listed Mendoza / Fitzpatrick / Hesburgh.
-> The class set was revised to **Mendoza / Morris_Inn / Welsh_Fam** after
-> reshooting on campus, because these three sit close to each other and offered
-> better lighting/angle variety for a single shoot.
+- **Mendoza** (College of Business) — modern light stone with a big dark glass
+  curtain wall.
+- **Morris_Inn** — older brick and stone, arched entrance.
+- **Welsh_Fam** — light beige brick with a glass entry tower.
 
-## Repository layout
+In Project 02 I had said I would use Mendoza, Fitzpatrick, and Hesburgh, but
+when I went out to actually shoot the photos I switched to these three
+because the lighting was better that day and they were close enough to all
+shoot in one trip.
 
-```
-WhereAmI/
-├── src/
-│   ├── preprocess.py        # resize, denoise, CLAHE
-│   ├── segment.py           # GrabCut → building mask
-│   ├── features.py          # Canny+Hough, ORB, HOG, HSV histogram
-│   ├── split.py             # 60/20/20 stratified split
-│   ├── extract_features.py  # batch feature extraction → .npz / .pkl
-│   └── demo.py              # full-pipeline visualization for one image
-├── sample_data/             # 1 image per class (committed for graders)
-├── outputs/                 # demo PNGs (committed)
-├── requirements.txt
-└── README.md                # ← this file
-```
+## How to run on the sample images
 
-## How to run on a sample
-
-The repo ships three sample images in `sample_data/` so a grader can run the
-pipeline without any of the raw data.
+I included one sample photo per building in `sample_data/` so the code can be
+tested without downloading the full dataset.
 
 ```bash
-# 1. set up environment
-python3 -m venv .venv && source .venv/bin/activate
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 
-# 2. run the full pipeline on one sample image
-python src/demo.py --image sample_data/Mendoza_sample.jpg     --out outputs/demo_mendoza.png
-python src/demo.py --image sample_data/Morris_Inn_sample.jpg  --out outputs/demo_morris.png
-python src/demo.py --image sample_data/Welsh_Fam_sample.jpg   --out outputs/demo_welsh.png
+python src/demo.py --image sample_data/Mendoza_sample.jpg    --out outputs/demo_mendoza.png
+python src/demo.py --image sample_data/Morris_Inn_sample.jpg --out outputs/demo_morris.png
+python src/demo.py --image sample_data/Welsh_Fam_sample.jpg  --out outputs/demo_welsh.png
 ```
 
-Each command produces a 2×3 grid showing original → preprocessed →
-segmented → Canny edges → Hough lines → ORB keypoints.
+This runs the whole pipeline (preprocess → segment → features) and saves a
+2x3 grid showing each step.
 
-To run on the full dataset (after you place raw class folders under
-`data/raw/<class>/`):
+To run on the full dataset, put the raw images in `data/raw/<class>/` and run:
 
 ```bash
-python src/split.py                # 60/20/20 stratified split into data/splits/
-python src/extract_features.py     # writes data/features/{train,val,test}.npz + *_orb.pkl
+python src/split.py             # 60/20/20 split into data/splits/
+python src/extract_features.py  # writes feature vectors to data/features/
+```
+
+## File layout
+
+```
+src/
+  preprocess.py        - resize, denoise, CLAHE
+  segment.py           - GrabCut segmentation
+  features.py          - Canny+Hough, ORB, HOG, HSV histogram
+  split.py             - train/val/test split
+  extract_features.py  - runs feature extraction on the whole dataset
+  demo.py              - runs full pipeline on one image
+sample_data/           - 3 sample photos (one per class)
+outputs/               - demo PNGs
 ```
 
 ## Dataset
 
-Photos taken personally on campus with an iPhone (4032×3024 RGB JPG).
+I took all the photos myself with my iPhone (4032x3024 JPGs). Following the
+plan from Project 02, for each building I shot photos at different angles
+(0°, ±30°, ±60°, ±90°), distances (near, medium, far), and tilts. The split
+is 60% train / 20% val / 20% test, with a fixed random seed so it's
+reproducible.
 
 | Class | # images |
 |---|---|
 | Mendoza | 264 |
-| Morris_Inn | 125 (one of two zips lost in upload — will be re-shot) |
+| Morris_Inn | 125 |
 | Welsh_Fam | 264 |
 
-Following the Project 02 protocol: each shot varies orientation (neutral / tilt
-up / tilt down / ground-level), angle (0°, ±30°, ±60°, ±90° off perpendicular),
-and distance (near / medium / far). Stratified random split: **60% train /
-20% val / 20% test**, fixed seed=42 so results are reproducible.
+The Morris_Inn count is lower because one of my zip files didn't upload
+properly — I'm going to retake those before the next project.
 
 ---
 
 # Report
 
-## 1. Methods applied
+## Methods I applied
 
-### Preprocessing (`src/preprocess.py`)
-- **Resize to longest-side = 800 px** with `cv2.INTER_AREA`
-- **Bilateral filter** (`d=7`, σ_color=σ_space=50)
-- **CLAHE on the L channel of LAB** (clip=2.0, 8×8 tiles)
+**Preprocessing** (`src/preprocess.py`):
+- Resize so the longest side is 800 pixels (with `cv2.INTER_AREA`).
+- Bilateral filter for noise removal.
+- CLAHE on the L channel of LAB color space for contrast normalization.
 
-### Segmentation (`src/segment.py`)
-- **GrabCut** initialized with an inset rectangle (8% border) as
-  probable-foreground prior, 3 iterations
-- Morphological **open + close** (5×5 ellipse) to clean specks and holes
+**Segmentation** (`src/segment.py`):
+- GrabCut, initialized with a rectangle that's inset 8% from the image
+  border.
+- Morphological open + close to clean up the mask.
 
-### Feature extraction (`src/features.py`)
-- **Canny edge detection** (thresholds 60 / 180) on the grayscale image,
-  masked to the building region
-- **Probabilistic Hough line transform** (`HoughLinesP`) on the masked
-  edge map; `minLineLength` scales with image size (10% of the short side)
-- **ORB keypoints + 256-bit binary descriptors** (up to 500 per image)
-- **Global HOG descriptor** on a 128×128 grayscale resize
-  (9 orientations, 16-px cells, 2×2 block, L2-Hys norm) — 1764-d vector
-- **3-D HSV color histogram**, 16×16×16 bins, normalized — 4096-d vector,
-  computed inside the building mask
+**Feature extraction** (`src/features.py`):
+- Canny edge detection (thresholds 60 / 180).
+- Probabilistic Hough line transform on the masked edges.
+- ORB keypoints and descriptors (up to 500 per image).
+- HOG descriptor on a 128x128 grayscale version of the image.
+- 3D HSV color histogram (16x16x16 bins), only inside the building mask.
 
-## 2. Justification
+## Why I chose these methods
 
-The Project 02 proposal called out two requirements that drove every choice
-here: features should be **structural and geometric** rather than colour-only,
-and they should be **robust to lighting / scale / orientation changes** while
-**sensitive to architectural differences**. We chose four complementary
-descriptors so that the eventual classifier sees the building from multiple
-angles (literally and figuratively).
+In Project 02 I wrote that the features should focus on the structure and
+geometry of the buildings (edges, shapes, patterns) and not just color, and
+that they need to be robust to changes in lighting, scale, and camera
+angle. Every choice below comes from those two requirements.
 
-**Why bilateral + CLAHE for preprocessing?** Project 02 anticipated wide
-lighting variation — clear sun vs. overcast, harsh shadows from low winter
-sun. CLAHE on L-channel normalizes local contrast without distorting hue,
-which matters because the three buildings *are* distinguishable partly by
-masonry tone (warm Morris brick vs. cool Mendoza limestone). Bilateral
-smoothing was preferred over Gaussian because the downstream Canny step
-needs preserved edges; a Gaussian blur would soften the very window-frame
-lines that drive recognition.
+**Bilateral filter + CLAHE.** I knew lighting was going to be a problem
+because I shot on a sunny winter day with very harsh shadows. CLAHE on the L
+channel evens out the local contrast without messing up the colors, which I
+wanted to keep because the three buildings actually have different brick
+and stone tones. I picked bilateral filter over a Gaussian blur because the
+next step is Canny edge detection, and a Gaussian would smooth out the
+window-frame edges I'm trying to detect. Bilateral keeps edges sharp while
+still removing noise.
 
-**Why GrabCut for segmentation?** The proposal noted that backgrounds
-contain "people, trees, shadows and other buildings." On these images the
-target building dominates the central frame (this was enforced during
-shooting), so an inset rectangular prior gives GrabCut enough information
-to converge on a clean foreground without manual annotation. Cheaper
-alternatives were considered and rejected: thresholding fails because sky
-luminance varies with weather; semantic segmentation networks were
-overkill for three classes and would shift the project from a CV-feature
-exercise to a deep-learning exercise. GrabCut is unsupervised, classical,
-and matches the spirit of the assignment.
+**GrabCut for segmentation.** My photos always have stuff I don't want in
+them — sky, grass, sidewalk, sometimes people. I needed a way to focus on
+the building. GrabCut is good for this because it doesn't need any training
+data, and since I always tried to put the building in the middle of the
+frame, an inset rectangle works well as the foreground prior. I considered
+using simple thresholding to remove the sky, but the sky color changes a
+lot depending on the weather, so it wasn't reliable. I also thought about
+using a deep-learning segmentation model, but that felt like overkill for
+3 classes and would have changed this from a CV class project to a deep
+learning project.
 
-**Why Canny + Hough?** This is the example explicitly mentioned in the
-Project 03 prompt, but it also fits the data: every one of these buildings
-has strong rectilinear structure (window grids, mullions, doorways,
-cornices) that a line-based descriptor captures well. Masking edges with
-the building mask before Hough cuts down on spurious lines from
-foreground clutter (sidewalk seams, branches) — visible in the
-`outputs/demo_morris.png` panel where the patio paving still produces some
-noise; that is an honest weakness when the building is small in frame.
+**Canny + Hough.** This one is the example from the assignment prompt, but
+it really does fit my project. All three buildings have a lot of straight
+lines — window grids, doorways, mullions — and Hough lines pick those up
+well. I run Canny first to get the edges, then mask the edges with the
+GrabCut mask so I'm only finding lines on the building itself, and then run
+Probabilistic Hough on what's left. The `minLineLength` parameter scales
+with image size so the same code works at different resolutions.
 
-**Why ORB?** Project 02 called for **rotation, scale, and viewpoint
-invariance** — exactly what ORB was designed for. ORB descriptors are
-binary (256-bit), which keeps storage small (500×32 bytes per image) and
-makes Hamming-distance matching very fast in the classifier stage.
-Compared to SIFT/SURF, ORB is patent-free and ships with OpenCV; compared
-to BRIEF/FAST alone, ORB adds rotation invariance via oriented keypoints.
+**ORB.** Project 02 specifically said the features should be invariant to
+rotation, scale, and viewpoint, which is exactly what ORB was designed for.
+ORB descriptors are also binary (256 bits), so they're small and fast to
+match later when I get to classification. I picked ORB instead of SIFT or
+SURF because ORB is free to use and ships with OpenCV.
 
-**Why HOG?** ORB is local; HOG is global. A holistic descriptor of the
-overall gradient structure complements the keypoint-bag-of-features view
-by forcing the classifier to look at the *layout* of the building, not
-just isolated patches. The fixed 128×128 resize means HOG vectors are the
-same length for every image, so they drop straight into a linear
-classifier.
+**HOG.** ORB is local — it only looks at small patches around the
+keypoints. HOG looks at the whole image at once and captures the overall
+gradient pattern. I figured having both a local and a global descriptor
+would help the classifier in Project 04. I resize the image to 128x128
+before computing HOG so the vector is the same length for every image,
+which makes it easy to feed into a classifier.
 
-**Why HSV histogram if "not colour alone"?** The proposal said colour
-shouldn't be the *primary* signal, not that it should be discarded. The
-three buildings really do have distinct masonry tones, and including HSV
-as one feature among four lets the classifier weight it appropriately.
-Computing the histogram inside the building mask is what makes this safe:
-sky and grass — which depend on weather and season — are excluded.
+**HSV histogram.** I know I said the features shouldn't be just color, but
+I think color is still useful as one feature among several. The three
+buildings really do have different masonry tones, and as long as I'm not
+relying only on color it should be fine. To make sure the histogram isn't
+picking up the sky or grass, I compute it inside the building mask only.
 
-## 3. Illustrations
+## Illustrations
 
-Generated by running `python src/demo.py --image <path>`; full PNGs live in
-`outputs/`. Each grid shows: original → preprocessed → segmented → masked
-Canny edges → Hough lines (count) → ORB keypoints (count).
+I wrote a demo script (`src/demo.py`) that runs the whole pipeline on one
+image and saves a 2x3 grid showing each step. I ran it on one sample from
+each class and saved the results in `outputs/`:
 
-| Building | Pipeline output |
-|---|---|
-| Mendoza | `outputs/demo_mendoza.png` — GrabCut isolates the central facade; Hough catches 38 strong lines tracing the window grid and entry portal; ORB clusters 500 keypoints on the high-contrast glass-mullion intersections. |
-| Welsh_Fam | `outputs/demo_welsh.png` — Hough returns ~118 lines tracing brick-course rows and window frames; ORB keypoints populate the brick texture densely. |
-| Morris_Inn | `outputs/demo_morris.png` — pipeline still completes, but the patterned patio dominates the lower frame, illustrating that GrabCut's rectangular prior weakens when the building is not centered. A future iteration may add a sky-segmentation pre-pass to shrink the search rect. |
+- `outputs/demo_mendoza.png` — GrabCut isolates the central facade well,
+  Hough finds 38 lines that trace the window grid and the entry portal,
+  and ORB clusters its keypoints on the high-contrast glass mullions.
+- `outputs/demo_welsh.png` — Hough finds about 118 lines tracing the brick
+  rows and window frames, ORB keypoints are spread over the brick texture.
+- `outputs/demo_morris.png` — the pipeline still runs but you can see
+  GrabCut struggles a bit because the building isn't centered in this
+  particular shot and the patterned patio takes up the bottom of the
+  frame. This is something I want to fix before Project 04.
 
-## 4. Known limitations / next steps
+## Things that aren't perfect yet
 
-- GrabCut's inset-rectangle prior assumes the building is roughly centered.
-  Off-center shots (Morris_Inn) leak foreground patio into the mask. Adding
-  an HSV-based sky removal as a hard background prior would help.
-- Hough line count varies wildly across viewpoints (38–250+); the Project
-  04 classifier should consume Hough output as **summary statistics**
-  (count, dominant orientation histogram, mean length) rather than raw
-  line lists.
-- 500 ORB keypoints per image will be aggregated into a fixed-length
-  bag-of-visual-words vector before classification.
-- Morris_Inn is currently undersized (125 vs 264 in the other classes) due
-  to a lost upload; this will be rebalanced before Project 04.
+- GrabCut assumes the building is centered. When it's not (like in the
+  Morris_Inn sample) the foreground patio leaks into the mask. I might add
+  a sky-removal step using HSV thresholding to give GrabCut a better starting
+  point.
+- The number of Hough lines varies a lot between images (38 vs 118 vs 250+).
+  For the classifier I'll probably summarize them with statistics — count,
+  dominant orientation, mean length — instead of using the raw lines.
+- 500 ORB keypoints per image is too many to use directly, so I'll convert
+  them to a fixed-length bag-of-visual-words vector before classification.
+- Morris_Inn only has 125 images right now because of a failed upload. I
+  need to reshoot or recover those before Project 04.
 
-## 5. Individual contributions
+## Individual contributions
 
-Solo project — Soo Kim — all data collection, code, and report.
+This is a solo project. I did all the data collection, code, and writing.
