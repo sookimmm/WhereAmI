@@ -34,8 +34,11 @@ def process_split(split_dir):
             if img is None:
                 print(f"  skip (unreadable): {path}")
                 continue
-            img = preprocess(img)
-            mask, _ = grabcut_building(img)
+            # Smaller resize and fewer iters for the batch path - GrabCut at
+            # 800px is way too slow. Mask quality at 300px is fine for the
+            # downstream HSV histogram masking.
+            img = preprocess(img, max_side=300)
+            mask, _ = grabcut_building(img, iters=1)
             hogs.append(hog_descriptor(img))
             hists.append(hsv_histogram(img, mask))
             _, des = orb_features(img)
@@ -43,7 +46,7 @@ def process_split(split_dir):
             labels.append(cls_to_idx[cls])
             paths.append(path)
             if i % 25 == 0:
-                print(f"  {cls}: {i}/{len(files)}")
+                print(f"  {cls}: {i}/{len(files)}", flush=True)
     return {
         "hog": np.asarray(hogs, dtype=np.float32),
         "hsv": np.asarray(hists, dtype=np.float32),

@@ -1,0 +1,18 @@
+train_accuracy: 1.0000
+val_accuracy:   0.9302
+classes: [np.str_('Mendoza'), np.str_('Morris_Inn'), np.str_('Welsh_Fam')]
+
+Confusion matrix (val):
+[[45  0  7]
+ [ 1 23  1]
+ [ 0  0 52]]
+
+              precision    recall  f1-score   support
+
+     Mendoza       0.98      0.87      0.92        52
+  Morris_Inn       1.00      0.92      0.96        25
+   Welsh_Fam       0.87      1.00      0.93        52
+
+    accuracy                           0.93       129
+   macro avg       0.95      0.93      0.94       129
+weighted avg       0.94      0.93      0.93       129
