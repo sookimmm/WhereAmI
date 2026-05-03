@@ -1,0 +1,20 @@
+# Data: too big for git
+data/raw/
+data/splits/
+data/features/
+*.zip
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
+
+# Outputs (commit only the curated demo PNGs)
+outputs/*.npz
+outputs/*.pkl
